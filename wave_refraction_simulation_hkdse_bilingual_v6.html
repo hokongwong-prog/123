@@ -1,0 +1,757 @@
+
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>波的折射模擬 Wave Refraction Simulation</title>
+<style>
+  :root{
+    --bg:#f6f8fc;
+    --panel:#ffffff;
+    --line:#0f172a;
+    --muted:#475569;
+    --blue:#2563eb;
+    --blue2:#0ea5e9;
+    --border:#dbe3ef;
+    --accent:#0f766e;
+    --warn:#b91c1c;
+  }
+  * { box-sizing: border-box; }
+  body{
+    margin:0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, "Noto Sans", sans-serif;
+    background: var(--bg);
+    color: var(--line);
+  }
+  .wrap{
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  h1{
+    margin:0 0 8px;
+    font-size: 1.8rem;
+    line-height: 1.2;
+  }
+  .subtitle{
+    color:var(--muted);
+    margin:0 0 16px;
+    line-height:1.45;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns: 340px 1fr;
+    gap:16px;
+    align-items:start;
+  }
+  .card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:18px;
+    box-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+  }
+  .controls{
+    padding:16px 16px 10px;
+  }
+  .sim-card{
+    padding:12px;
+  }
+  .section-title{
+    font-size:1rem;
+    font-weight:700;
+    margin:0 0 12px;
+  }
+  .control{
+    margin-bottom:14px;
+  }
+  .control label{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    gap:12px;
+    font-size:0.96rem;
+    margin-bottom:6px;
+  }
+  .control small{
+    color:var(--muted);
+    display:block;
+    margin-top:4px;
+    line-height:1.35;
+  }
+  .value{
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-weight:700;
+    white-space:nowrap;
+  }
+  input[type="range"]{
+    width:100%;
+  }
+  .buttons{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:10px;
+    margin-bottom:8px;
+  }
+  button{
+    border:none;
+    background:#0f172a;
+    color:#fff;
+    padding:10px 14px;
+    border-radius:12px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  button.secondary{
+    background:#e2e8f0;
+    color:#0f172a;
+  }
+  .legend{
+    border-top:1px solid var(--border);
+    margin-top:12px;
+    padding-top:12px;
+    color:var(--muted);
+    font-size:0.93rem;
+    line-height:1.45;
+  }
+  .metrics{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:10px;
+    margin-top:10px;
+  }
+  .metric{
+    background:#f8fafc;
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:10px 12px;
+  }
+  .metric .k{
+    font-size:0.82rem;
+    color:var(--muted);
+    margin-bottom:2px;
+  }
+  .metric .v{
+    font-size:1.05rem;
+    font-weight:700;
+    font-variant-numeric: tabular-nums;
+  }
+  #simCanvas{
+    width:100%;
+    height:auto;
+    display:block;
+    border-radius:16px;
+    background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+  }
+  .foot{
+    margin-top:10px;
+    font-size:0.92rem;
+    color:var(--muted);
+    line-height:1.4;
+  }
+  .warn{
+    color:var(--warn);
+    font-weight:700;
+  }
+  @media (max-width: 900px){
+    .grid{ grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Wave Refraction Simulation<br><span style="font-size:0.82em;font-weight:650;">波的折射模擬</span></h1>
+  <p class="subtitle">
+    保持<strong>頻率固定</strong>，改變<strong>水深</strong>及<strong>入射角</strong>，觀察波在<strong>深水</strong>與<strong>淺水</strong>的清晰分界面上，
+    <strong>波長</strong>、<strong>波陣面間距</strong>及<strong>折射角</strong>如何改變。<br>
+    Keep the <strong>frequency fixed</strong> and vary the <strong>water depth</strong> and <strong>incident angle</strong> to see how the
+    <strong>wavelength</strong>, <strong>wavefront spacing</strong>, and <strong>refraction angle</strong> change at the sharp boundary
+    between deep and shallow water.
+  </p>
+
+  <div class="grid">
+    <div class="card controls">
+      <div class="section-title">Controls 控制</div>
+
+      <div class="control">
+        <label>
+          <span>Left depth 深水區深度 h₁</span>
+          <span class="value" id="deepVal">1.80 m</span>
+        </label>
+        <input id="deepDepth" type="range" min="0.30" max="2.50" step="0.01" value="1.80" />
+        <small>在淺水近似下，波速為 <strong>v = √(gh)</strong>。<br>Under the shallow-water approximation, the wave speed is <strong>v = √(gh)</strong>.</small>
+      </div>
+
+      <div class="control">
+        <label>
+          <span>Right depth 淺水區深度 h₂</span>
+          <span class="value" id="shallowVal">0.60 m</span>
+        </label>
+        <input id="shallowDepth" type="range" min="0.10" max="2.50" step="0.01" value="0.60" />
+        <small>減少水深會令波長變短，並使波向法線方向偏折。<br>Reducing the depth makes the wavelength shorter and bends the wave toward the normal.</small>
+      </div>
+
+      <div class="control">
+        <label>
+          <span>Incident angle 入射角 θ₁</span>
+          <span class="value" id="angleVal">35°</span>
+        </label>
+        <input id="angle" type="range" min="-75" max="75" step="1" value="35" />
+        <small>角度由界面的<strong>法線</strong>量度。你亦可直接拖動畫面中入射波線上的橙色控制點來改變角度。<br>The angle is measured from the <strong>normal</strong> to the interface. You can also drag the orange handle on the incident ray to change the angle directly.</small>
+      </div>
+
+
+      <div class="buttons">
+        <button id="toggleBtn">Pause 暫停</button>
+        <button id="resetBtn" class="secondary">Reset 重設</button>
+      </div>
+
+      <div class="metrics">
+        <div class="metric">
+          <div class="k">Left wavelength 深水區波長</div>
+          <div class="v" id="lambda1Text">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Right wavelength 淺水區波長</div>
+          <div class="v" id="lambda2Text">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Left speed 深水區波速</div>
+          <div class="v" id="speed1Text">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Right speed 淺水區波速</div>
+          <div class="v" id="speed2Text">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Refracted angle 折射角 θ₂</div>
+          <div class="v" id="angle2Text">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Frequency 頻率（固定 fixed）</div>
+          <div class="v" id="freqText">1.20 Hz</div>
+        </div>
+      </div>
+
+      <div class="legend">
+        <div><strong>Suggested teaching use 建議用法</strong></div>
+        <div>1. 固定入射角，減少右側水深，比較兩區的波長。<br>Fix the incident angle and reduce the right-hand depth to compare the wavelengths in the two regions.</div>
+        <div>2. 固定兩側水深，改變入射角，觀察波陣面在邊界處如何轉向。<br>Fix both depths and vary the incident angle to watch the wavefront rotate at the boundary.</div>
+        <div>3. 模型保持簡單：只有一條深水與淺水之間的清晰邊界。<br>Keep the model simple: one sharp boundary between deep and shallow water.</div>
+      </div>
+    </div>
+
+    <div class="card sim-card">
+      <canvas id="simCanvas" width="860" height="540"></canvas>
+      <div class="foot" id="noteText">
+        藍色線表示波陣面；橙色線表示一條代表性的波線。<br>
+        Blue lines represent the wavefronts; the orange line shows one representative ray path.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const g = 9.81;
+  const f = 1.20;
+  const omega = 2 * Math.PI * f;
+  const pxPerMeter = 38;
+
+  const els = {
+    deepDepth: document.getElementById('deepDepth'),
+    shallowDepth: document.getElementById('shallowDepth'),
+    angle: document.getElementById('angle'),
+    deepVal: document.getElementById('deepVal'),
+    shallowVal: document.getElementById('shallowVal'),
+    angleVal: document.getElementById('angleVal'),
+    lambda1Text: document.getElementById('lambda1Text'),
+    lambda2Text: document.getElementById('lambda2Text'),
+    speed1Text: document.getElementById('speed1Text'),
+    speed2Text: document.getElementById('speed2Text'),
+    angle2Text: document.getElementById('angle2Text'),
+    toggleBtn: document.getElementById('toggleBtn'),
+    resetBtn: document.getElementById('resetBtn'),
+    noteText: document.getElementById('noteText'),
+    canvas: document.getElementById('simCanvas'),
+    freqText: document.getElementById('freqText')
+  };
+
+  const ctx = els.canvas.getContext('2d');
+
+  const state = {
+    paused: false,
+    time: 0,
+    lastStamp: null,
+    deepDepth: parseFloat(els.deepDepth.value),
+    shallowDepth: parseFloat(els.shallowDepth.value),
+    angleDeg: parseFloat(els.angle.value),
+    draggingAngle: false,
+  };
+
+  function smoothstep(edge0, edge1, x) {
+    if (edge0 === edge1) return x < edge0 ? 0 : 1;
+    let t = (x - edge0) / (edge1 - edge0);
+    t = Math.max(0, Math.min(1, t));
+    return t * t * (3 - 2 * t);
+  }
+
+  function updateLabels() {
+    els.deepVal.textContent = `${state.deepDepth.toFixed(2)} m`;
+    els.shallowVal.textContent = `${state.shallowDepth.toFixed(2)} m`;
+    els.angleVal.textContent = `${state.angleDeg.toFixed(0)}°`;
+
+    const v1 = Math.sqrt(g * state.deepDepth);
+    const v2 = Math.sqrt(g * state.shallowDepth);
+    const lambda1 = v1 / f;
+    const lambda2 = v2 / f;
+    els.lambda1Text.textContent = `${lambda1.toFixed(2)} m`;
+    els.lambda2Text.textContent = `${lambda2.toFixed(2)} m`;
+    els.speed1Text.textContent = `${v1.toFixed(2)} m s⁻¹`;
+    els.speed2Text.textContent = `${v2.toFixed(2)} m s⁻¹`;
+
+    const s1 = Math.sin(Math.abs(state.angleDeg) * Math.PI / 180);
+    const ratio = (v2 / v1) * s1;
+    if (ratio <= 1) {
+      const theta2 = Math.asin(ratio) * 180 / Math.PI;
+      els.angle2Text.textContent = `${Math.sign(state.angleDeg || 1) < 0 ? '-' : ''}${theta2.toFixed(1)}°`;
+    } else {
+      els.angle2Text.innerHTML = '<span class="warn">沒有透射波<br>No transmitted wave</span>';
+    }
+  }
+
+  function readInputs() {
+    state.deepDepth = parseFloat(els.deepDepth.value);
+    state.shallowDepth = parseFloat(els.shallowDepth.value);
+    state.angleDeg = parseFloat(els.angle.value);
+    updateLabels();
+  }
+
+  [els.deepDepth, els.shallowDepth, els.angle].forEach(el => {
+    el.addEventListener('input', readInputs);
+  });
+
+  els.toggleBtn.addEventListener('click', () => {
+    state.paused = !state.paused;
+    els.toggleBtn.textContent = state.paused ? 'Play 播放' : 'Pause 暫停';
+  });
+
+  els.resetBtn.addEventListener('click', () => {
+    state.paused = false;
+    state.time = 0;
+    state.lastStamp = null;
+    els.deepDepth.value = '1.80';
+    els.shallowDepth.value = '0.60';
+    els.angle.value = '35';
+    els.toggleBtn.textContent = 'Pause 暫停';
+    readInputs();
+  });
+
+  function depthAt(x, x0) {
+    return x < x0 ? state.deepDepth : state.shallowDepth;
+  }
+
+  function drawBackground(W, H, x0) {
+    ctx.clearRect(0, 0, W, H);
+
+    // water shading varying with depth
+    const strip = 4;
+    for (let x = 0; x < W; x += strip) {
+      const h = depthAt(x, x0);
+      const t = (h - 0.1) / (2.5 - 0.1);
+      const light = 94 - 20 * t;
+      ctx.fillStyle = `hsl(205, 95%, ${light}%)`;
+      ctx.fillRect(x, 0, strip + 1, H);
+    }
+
+    // top labels background
+    ctx.fillStyle = 'rgba(255,255,255,0.84)';
+    ctx.fillRect(12, 12, 300, 90);
+    ctx.fillRect(W - 312, 12, 300, 90);
+
+    // interface center and transition bounds
+    ctx.save();
+    ctx.setLineDash([8, 8]);
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.32)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x0, 0);
+    ctx.lineTo(x0, H);
+    ctx.stroke();
+    ctx.restore();
+
+
+    ctx.fillStyle = '#0f172a';
+    ctx.font = '600 18px -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif';
+    ctx.fillText('左側區域 Left region（深水區）', 24, 40);
+    ctx.fillText('右側區域 Right region（淺水區）', W - 250, 40);
+
+    ctx.font = '14px -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif';
+    ctx.fillStyle = '#334155';
+    ctx.fillText(`h₁ = ${state.deepDepth.toFixed(2)} m`, 24, 68);
+    ctx.fillText(`h₂ = ${state.shallowDepth.toFixed(2)} m`, W - 200, 68);
+    ctx.fillText('界面 Interface', x0 - 44, 24);
+  }
+
+  function drawWavefronts(W, H, t) {
+    const x0 = W * 0.52;
+    const pivotY = H * 0.68;
+    drawBackground(W, H, x0);
+
+    const theta1 = state.angleDeg * Math.PI / 180;
+    const sign = theta1 >= 0 ? 1 : -1;
+    const angleAbs = Math.abs(theta1);
+
+    const dx = 4;
+    const xs = [];
+    const S = [];
+    const kxList = [];
+    let cumulative = 0;
+
+    const c1m = Math.sqrt(g * state.deepDepth);
+    const c2m = Math.sqrt(g * state.shallowDepth);
+    const c1 = c1m * pxPerMeter;
+    const k1 = omega / c1;
+    const ky = k1 * Math.sin(angleAbs);
+
+    let totalInternal = false;
+
+    for (let x = 0; x <= W + 0.001; x += dx) {
+      const h = depthAt(x, x0);
+      const cm = Math.sqrt(g * h);
+      const cpx = cm * pxPerMeter;
+      const k = omega / cpx;
+      const inside = k * k - ky * ky;
+      let kx = 0;
+      if (inside >= 0) {
+        kx = Math.sqrt(inside);
+      } else {
+        totalInternal = true;
+        kx = NaN;
+      }
+      xs.push(x);
+      if (xs.length === 1) {
+        S.push(0);
+      } else {
+        const prevKx = kxList[kxList.length - 1];
+        if (Number.isFinite(prevKx) && Number.isFinite(kx)) {
+          cumulative += 0.5 * (prevKx + kx) * dx;
+        }
+        S.push(cumulative);
+      }
+      kxList.push(kx);
+    }
+
+    // draw wavefronts
+    ctx.save();
+    ctx.strokeStyle = 'rgba(37, 99, 235, 0.95)';
+    ctx.lineWidth = 2.2;
+
+    const fieldOriginY = pivotY;
+
+    if (Math.abs(ky) < 1e-5) {
+      const sMax = S[S.length - 1];
+      const base = ((omega * t) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+      const mMin = Math.floor((-base) / (2 * Math.PI)) - 2;
+      const mMax = Math.ceil((sMax - base) / (2 * Math.PI)) + 2;
+
+      for (let m = mMin; m <= mMax; m++) {
+        const target = base + 2 * Math.PI * m;
+        if (target < 0 || target > sMax) continue;
+        let lo = 0, hi = S.length - 1;
+        while (hi - lo > 1) {
+          const mid = Math.floor((lo + hi) / 2);
+          if (S[mid] < target) lo = mid;
+          else hi = mid;
+        }
+        const sLo = S[lo], sHi = S[hi];
+        const frac = (target - sLo) / Math.max(1e-9, (sHi - sLo));
+        const x = xs[lo] + frac * (xs[hi] - xs[lo]);
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+    } else {
+      for (let n = -90; n <= 90; n++) {
+        let drawing = false;
+        ctx.beginPath();
+        for (let i = 0; i < xs.length; i++) {
+          if (!Number.isFinite(kxList[i])) break;
+          const y = fieldOriginY + sign * ((2 * Math.PI * n + omega * t - S[i]) / ky);
+          const visible = y >= -80 && y <= H + 80;
+          if (visible) {
+            if (!drawing) {
+              ctx.moveTo(xs[i], y);
+              drawing = true;
+            } else {
+              ctx.lineTo(xs[i], y);
+            }
+          } else if (drawing) {
+            ctx.stroke();
+            ctx.beginPath();
+            drawing = false;
+          }
+        }
+        if (drawing) ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    const ratio = (c2m / c1m) * Math.sin(angleAbs);
+    const theta2Abs = ratio <= 1 ? Math.asin(ratio) : null;
+
+    // draw normal at the actual point of incidence
+    ctx.save();
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.58)';
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([6, 6]);
+    ctx.beginPath();
+    ctx.moveTo(x0 - 170, pivotY);
+    ctx.lineTo(x0 + 170, pivotY);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+    ctx.font = '13px -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif';
+    ctx.fillText('法線 Normal', x0 + 12, pivotY - 10);
+    ctx.restore();
+
+    // representative incident and refracted rays now pivot about the same incidence point
+    const pivot = { x: x0, y: pivotY };
+    const incBack = { x: -Math.cos(angleAbs), y: -sign * Math.sin(angleAbs) };
+    const rayExtent = Math.max(W, H) * 1.3;
+    const incStart = { x: pivot.x + incBack.x * rayExtent, y: pivot.y + incBack.y * rayExtent };
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(234, 88, 12, 0.95)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(incStart.x, incStart.y);
+    ctx.lineTo(pivot.x, pivot.y);
+    if (theta2Abs !== null) {
+      const transDir = { x: Math.cos(theta2Abs), y: sign * Math.sin(theta2Abs) };
+      const transEnd = { x: pivot.x + transDir.x * rayExtent, y: pivot.y + transDir.y * rayExtent };
+      ctx.lineTo(transEnd.x, transEnd.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    function drawArrow(x1, y1, x2, y2, color) {
+      const head = 10;
+      const ang = Math.atan2(y2 - y1, x2 - x1);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x2, y2);
+      ctx.lineTo(x2 - head * Math.cos(ang - Math.PI / 6), y2 - head * Math.sin(ang - Math.PI / 6));
+      ctx.lineTo(x2 - head * Math.cos(ang + Math.PI / 6), y2 - head * Math.sin(ang + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // arrows showing propagation direction
+    drawArrow(
+      pivot.x + incBack.x * 120, pivot.y + incBack.y * 120,
+      pivot.x + incBack.x * 44, pivot.y + incBack.y * 44,
+      '#ea580c'
+    );
+    if (theta2Abs !== null) {
+      const transDir = { x: Math.cos(theta2Abs), y: sign * Math.sin(theta2Abs) };
+      drawArrow(
+        pivot.x + transDir.x * 44, pivot.y + transDir.y * 44,
+        pivot.x + transDir.x * 120, pivot.y + transDir.y * 120,
+        '#ea580c'
+      );
+    }
+
+    // angle markers at the actual incidence point
+    ctx.save();
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.font = '600 16px -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif';
+    ctx.fillStyle = '#0f172a';
+
+    function drawArcWithLabel(radius, start, end, label) {
+      ctx.beginPath();
+      ctx.arc(pivot.x, pivot.y, radius, start, end, false);
+      ctx.stroke();
+      const mid = (start + end) / 2;
+      const lx = pivot.x + (radius + 16) * Math.cos(mid);
+      const ly = pivot.y + (radius + 16) * Math.sin(mid);
+      ctx.fillText(label, lx - 10, ly + 6);
+    }
+
+    if (sign >= 0) {
+      // incident ray comes from upper-left, so θ₁ should be above the left normal
+      drawArcWithLabel(34, Math.PI, Math.PI + angleAbs, 'θ₁');
+      if (theta2Abs !== null) drawArcWithLabel(52, 0, theta2Abs, 'θ₂');
+    } else {
+      // incident ray comes from lower-left, so θ₁ should be below the left normal
+      drawArcWithLabel(34, Math.PI - angleAbs, Math.PI, 'θ₁');
+      if (theta2Abs !== null) drawArcWithLabel(52, -theta2Abs, 0, 'θ₂');
+    }
+    ctx.restore();
+
+    // draggable angle handle on the incident ray
+    const handleRadius = 120;
+    const handleX = pivot.x + incBack.x * handleRadius;
+    const handleY = pivot.y + incBack.y * handleRadius;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(234, 88, 12, 0.35)';
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(pivot.x, pivot.y);
+    ctx.lineTo(handleX, handleY);
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(234, 88, 12, 0.98)';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(handleX, handleY, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    if (totalInternal && ratio > 1) {
+      els.noteText.innerHTML = '<span class="warn">在這個水深與角度組合下，理想模型預測右側不會出現透射波陣面。<br>For this depth-angle combination, the ideal model predicts no transmitted wavefront on the right.</span> 請減小入射角或把右側水域調得較淺；你亦可拖動橙色控制點，將入射波線拉向或拉離法線，以觀察角度變化。<br>Reduce the incident angle or make the right side shallower; you can also drag the orange handle to pull the incident ray toward or away from the normal and inspect how the angle changes.';
+    } else {
+      els.noteText.innerHTML = '藍色線表示波陣面；橙色線表示一條代表性的波線。入射角 θ₁ 及折射角 θ₂ 現在都畫在波線真正與界面相交的位置，方便學生直接比較。可拖動入射波線上的橙色控制點，把波線拉向或拉離法線。虛線法線與界面垂直。<br>Blue lines represent the wavefronts; the orange line shows one representative ray path. The incident angle θ₁ and refracted angle θ₂ are now drawn at the actual point where the ray meets the interface, so students can compare them directly. Drag the orange handle on the incident ray to pull it toward or away from the normal. The dashed normal is perpendicular to the interface.';
+    }
+
+    const lambda1px = (c1m / f) * pxPerMeter;
+    const lambda2px = (c2m / f) * pxPerMeter;
+
+    function drawSpacingMarker(x, y, len, label) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(15,23,42,0.8)';
+      ctx.fillStyle = '#0f172a';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len, y);
+      ctx.moveTo(x, y - 7);
+      ctx.lineTo(x, y + 7);
+      ctx.moveTo(x + len, y - 7);
+      ctx.lineTo(x + len, y + 7);
+      ctx.stroke();
+      ctx.font = '13px -apple-system, BlinkMacSystemFont, Segoe UI, Arial, sans-serif';
+      ctx.fillText(label, x + 6, y - 10);
+      ctx.restore();
+    }
+
+    drawSpacingMarker(36, H - 34, Math.min(lambda1px, W * 0.22), 'λ₁');
+    drawSpacingMarker(W - Math.min(lambda2px, W * 0.22) - 36, H - 34, Math.min(lambda2px, W * 0.22), 'λ₂');
+  }
+
+
+  function getCanvasPoint(evt) {
+    const rect = els.canvas.getBoundingClientRect();
+    return {
+      x: evt.clientX - rect.left,
+      y: evt.clientY - rect.top,
+      w: rect.width,
+      h: rect.height
+    };
+  }
+
+  function getHandlePosition(evt) {
+    const p = getCanvasPoint(evt);
+    const x0 = p.w * 0.52;
+    const y0 = p.h * 0.68;
+    const theta = state.angleDeg * Math.PI / 180;
+    const sign = theta >= 0 ? 1 : -1;
+    const angleAbs = Math.abs(theta);
+    const handleRadius = 120;
+    const hx = x0 - handleRadius * Math.cos(angleAbs);
+    const hy = y0 - sign * handleRadius * Math.sin(angleAbs);
+    return { p, x0, y0, hx, hy };
+  }
+
+  function handleHitTest(evt) {
+    const { p, hx, hy } = getHandlePosition(evt);
+    return Math.hypot(p.x - hx, p.y - hy) <= 18;
+  }
+
+  function updateAngleFromEvent(evt) {
+    const { p, x0, y0 } = getHandlePosition(evt);
+    const dx = Math.max(8, x0 - Math.min(p.x, x0 - 8));
+    const dy = y0 - p.y;
+    const theta = Math.atan2(dy, dx) * 180 / Math.PI;
+    const clamped = Math.max(-75, Math.min(75, theta));
+    state.angleDeg = clamped;
+    els.angle.value = String(Math.round(clamped));
+    updateLabels();
+  }
+
+  els.canvas.addEventListener('pointerdown', (evt) => {
+    if (handleHitTest(evt)) {
+      state.draggingAngle = true;
+      els.canvas.setPointerCapture(evt.pointerId);
+      updateAngleFromEvent(evt);
+      els.canvas.style.cursor = 'grabbing';
+    }
+  });
+
+  els.canvas.addEventListener('pointermove', (evt) => {
+    if (state.draggingAngle) {
+      updateAngleFromEvent(evt);
+      return;
+    }
+    els.canvas.style.cursor = handleHitTest(evt) ? 'grab' : 'default';
+  });
+
+  function endDrag(evt) {
+    if (state.draggingAngle) {
+      state.draggingAngle = false;
+      try { els.canvas.releasePointerCapture(evt.pointerId); } catch (e) {}
+    }
+    els.canvas.style.cursor = 'default';
+  }
+
+  els.canvas.addEventListener('pointerup', endDrag);
+  els.canvas.addEventListener('pointercancel', endDrag);
+  els.canvas.addEventListener('pointerleave', () => {
+    if (!state.draggingAngle) els.canvas.style.cursor = 'default';
+  });
+
+  function animate(stamp) {
+    if (state.lastStamp == null) state.lastStamp = stamp;
+    const dt = (stamp - state.lastStamp) / 1000;
+    state.lastStamp = stamp;
+    if (!state.paused) state.time += Math.min(dt, 0.05);
+
+    const ratio = window.devicePixelRatio || 1;
+    const displayWidth = els.canvas.clientWidth;
+    const displayHeight = Math.round(displayWidth * 540 / 860);
+    if (els.canvas.width !== Math.round(displayWidth * ratio) || els.canvas.height !== Math.round(displayHeight * ratio)) {
+      els.canvas.width = Math.round(displayWidth * ratio);
+      els.canvas.height = Math.round(displayHeight * ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+
+    drawWavefronts(displayWidth, displayHeight, state.time);
+    requestAnimationFrame(animate);
+  }
+
+  readInputs();
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
